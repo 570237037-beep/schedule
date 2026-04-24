@@ -696,17 +696,22 @@ function renderAllTasks(){
 function toggleWFromAll(id){ var t=wTasks.find(t=>t.id===id); if(t)t.done=!t.done; save(); renderAllTasks(); renderCal(); }
 function delWFromAll(id){ wTasks=wTasks.filter(t=>t.id!==id); save(); renderAllTasks(); renderCal(); }
 
-// --- 🎙️ 语音识别 ---
+// --- 🎙️ 语音识别 + 豆包AI润色 ---
 var voiceRecog = null;
 var isListening = false;
+var rawTranscript = '';
+
+// 豆包 API 配置
+const DOUBAO_API_KEY = 'ark-7369c807-376a-443f-b43f-3bd16c34c4dd-64e0c';
+const DOUBAO_MODEL = 'doubao-1-5-pro-32k-250115';
 
 (function initVoice(){
   var SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
   var hint = document.getElementById('voice-hint');
   var btn = document.getElementById('voice-btn');
   if(!SpeechRecognition){
-    if(btn) btn.title = '当前浏览器不支持语音识别（推荐Chrome）';
-    if(hint) hint.innerHTML = '<span class="voice-no-support">⚠️ 当前浏览器不支持语音识别，推荐使用 Chrome</span>';
+    if(btn) btn.title = '当前浏览器不支持语音识别（推荐Chrome/Safari）';
+    if(hint) hint.innerHTML = '<span class="voice-no-support">⚠️ 当前浏览器不支持语音识别</span>';
     return;
   }
   voiceRecog = new SpeechRecognition();
@@ -717,6 +722,9 @@ var isListening = false;
 
   voiceRecog.onstart = function(){
     isListening = true;
+    rawTranscript = '';
+    var btn = document.getElementById('voice-btn');
+    var hint = document.getElementById('voice-hint');
     btn.classList.add('listening');
     btn.textContent = '⏹️';
     hint.textContent = '🎙️ 正在聆听，请说话...';
@@ -726,9 +734,12 @@ var isListening = false;
     for(var i = e.resultIndex; i < e.results.length; i++){
       transcript += e.results[i][0].transcript;
     }
+    rawTranscript = transcript;
     document.getElementById('chat-input').value = transcript;
+    var hint = document.getElementById('voice-hint');
     if(e.results[e.results.length-1].isFinal){
-      hint.textContent = '✅ 识别完成，可直接发送';
+      hint.textContent = '✅ 识别完成，豆包润色中...';
+      polishWithDoubao(transcript);
     } else {
       hint.textContent = '🎙️ ' + transcript;
     }
@@ -737,20 +748,53 @@ var isListening = false;
     var msg = {
       'not-allowed':'❌ 麦克风权限被拒绝，请在浏览器设置中允许',
       'no-speech':'💬 未检测到声音，请靠近麦克风重试',
-      'network':'❌ 网络错误，语音识别需要联网',
+      'network':'⚠️ 语音识别需要联网',
       'aborted':'已停止识别'
     };
-    hint.textContent = msg[e.error] || ('❌ 识别失败：' + e.error);
+    document.getElementById('voice-hint').textContent = msg[e.error] || ('❌ 识别失败：' + e.error);
     stopVoice();
   };
-  voiceRecog.onend = function(){
-    stopVoice();
-  };
+  voiceRecog.onend = function(){ stopVoice(); };
 })();
+
+async function polishWithDoubao(text){
+  var hint = document.getElementById('voice-hint');
+  var input = document.getElementById('chat-input');
+  try {
+    hint.textContent = '✨ 豆包润色中...';
+    const resp = await fetch('https://ark.cn-beijing.volces.com/api/v3/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + DOUBAO_API_KEY
+      },
+      body: JSON.stringify({
+        model: DOUBAO_MODEL,
+        messages: [{
+          role: 'user',
+          content: '你是一个日程助手。请把下面这段语音识别的文字整理成简洁清晰的任务或记录，纠正错别字，提炼重点，去掉口头语，直接输出整理后的内容，不要加任何解释：
+
+' + text
+        }],
+        max_tokens: 200
+      })
+    });
+    const data = await resp.json();
+    if(data.choices && data.choices[0]){
+      var polished = data.choices[0].message.content.trim();
+      input.value = polished;
+      hint.textContent = '✨ 豆包已润色，可发送或继续修改';
+    } else {
+      hint.textContent = '✅ 识别完成（润色失败，已保留原文）';
+    }
+  } catch(e) {
+    hint.textContent = '✅ 识别完成（润色失败，已保留原文）';
+  }
+}
 
 function toggleVoice(){
   if(!voiceRecog){
-    alert('当前浏览器不支持语音识别，请使用 Chrome 浏览器');
+    alert('当前浏览器不支持语音识别，请使用 Safari 或 Chrome');
     return;
   }
   if(isListening){ voiceRecog.stop(); }
