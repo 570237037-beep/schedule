@@ -712,10 +712,17 @@ function delWFromAll(id){ wTasks=wTasks.filter(t=>t.id!==id); save(); renderAllT
 // --- 🎙️ 语音主面板 ---
 var voiceMainRecog = null;
 var isMainListening = false;
+var voiceAICategory = 'ideas';
+var voiceAIText = '';
+var voiceAIAmount = 0;
 
 (function initVoiceMain(){
   var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-  if(!SR) return;
+  if(!SR){
+    var hint = document.getElementById('voice-main-hint');
+    if(hint) hint.textContent = '⚠️ 请用 Safari 或 Chrome 打开';
+    return;
+  }
   voiceMainRecog = new SR();
   voiceMainRecog.lang = 'zh-CN';
   voiceMainRecog.continuous = false;
@@ -725,80 +732,116 @@ var isMainListening = false;
     isMainListening = true;
     var btn = document.getElementById('voice-main-btn');
     if(btn){ btn.textContent='⏹️'; btn.style.background='#e24b4a'; }
-    document.getElementById('voice-main-hint').textContent = '🎙️ 正在聆听，请说话...';
+    document.getElementById('voice-main-hint').textContent = '🎙️ 正在聆听，再点结束...';
     document.getElementById('voice-result-box').style.display = 'none';
+    document.getElementById('voice-ai-result').style.display = 'none';
   };
+
   voiceMainRecog.onresult = function(e){
-    var t='';
-    for(var i=e.resultIndex;i<e.results.length;i++) t+=e.results[i][0].transcript;
-    document.getElementById('voice-result-text').value = t;
+    var t = '';
+    for(var i=0; i<e.results.length; i++) t += e.results[i][0].transcript;
+    document.getElementById('voice-raw-text').textContent = t;
+    document.getElementById('voice-result-box').style.display = 'block';
     if(e.results[e.results.length-1].isFinal){
-      document.getElementById('voice-main-hint').textContent = '✨ 豆包润色中...';
-      document.getElementById('voice-result-box').style.display = 'block';
-      polishVoiceMain(t);
+      document.getElementById('voice-main-hint').textContent = '🧠 智能分类中...';
+      smartClassify(t);
+    } else {
+      document.getElementById('voice-main-hint').textContent = '🎙️ ' + t;
     }
   };
+
   voiceMainRecog.onerror = function(e){
-    document.getElementById('voice-main-hint').textContent = '❌ 识别失败，请重试';
-    stopVoiceMain();
+    var msgs = {'not-allowed':'❌ 请允许麦克风权限', 'no-speech':'未检测到声音，请重试', 'network':'网络错误，请重试'};
+    document.getElementById('voice-main-hint').textContent = msgs[e.error] || ('❌ 错误：' + e.error);
+    isMainListening = false;
+    var btn = document.getElementById('voice-main-btn');
+    if(btn){ btn.textContent='🎙️'; btn.style.background='#2c2c2a'; }
   };
-  voiceMainRecog.onend = function(){ stopVoiceMain(); };
+
+  voiceMainRecog.onend = function(){
+    isMainListening = false;
+    var btn = document.getElementById('voice-main-btn');
+    if(btn){ btn.textContent='🎙️'; btn.style.background='#2c2c2a'; }
+  };
 })();
 
 function toggleVoiceMain(){
   if(!voiceMainRecog){ alert('请用 Safari 或 Chrome 浏览器'); return; }
-  if(isMainListening){ voiceMainRecog.stop(); }
-  else {
+  if(isMainListening){
+    try{ voiceMainRecog.stop(); } catch(e){}
+  } else {
     document.getElementById('voice-save-hint').textContent = '';
-    voiceMainRecog.start();
+    document.getElementById('voice-result-box').style.display = 'none';
+    document.getElementById('voice-ai-result').style.display = 'none';
+    isMainListening = true;
+    try{ voiceMainRecog.start(); } catch(e){ isMainListening=false; }
   }
 }
-function stopVoiceMain(){
-  isMainListening = false;
-  var btn = document.getElementById('voice-main-btn');
-  if(btn){ btn.textContent='🎙️'; btn.style.background='#2c2c2a'; }
-}
-async function polishVoiceMain(text){
-  var hint = document.getElementById('voice-main-hint');
-  var textarea = document.getElementById('voice-result-text');
-  try {
-    var prompt = '你是日程助手，把语音识别文字整理成简洁记录，纠正错别字，提炼重点，去口头语，直接输出结果不加解释。原文：' + text;
-    const resp = await fetch('https://ark.cn-beijing.volces.com/api/v3/chat/completions', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer ' + DOUBAO_API_KEY},
-      body: JSON.stringify({model: DOUBAO_MODEL, messages: [{role: 'user', content: prompt}], max_tokens: 200})
-    });
-    const data = await resp.json();
-    if(data.choices && data.choices[0]){
-      textarea.value = data.choices[0].message.content.trim();
-      hint.textContent = '✨ 豆包已润色，请选择保存位置';
-    } else {
-      hint.textContent = '✅ 识别完成，请选择保存位置';
-    }
-  } catch(e) {
-    hint.textContent = '✅ 识别完成，请选择保存位置';
+
+function smartClassify(text){
+  var lower = text;
+  var numMatch = text.match(/([0-9]+(\.[0-9]+)?)/);
+  var amt = numMatch ? parseFloat(numMatch[1]) : 0;
+
+  // 去口头语
+  var polished = text
+    .replace(/^(那个|就是|然后|嗯|啊|哦|呢|吧|哈|喂|好的|对了|其实|所以)\s*/g, '')
+    .replace(/\s*(那个|就是说|的话|吧|呢|哈哈|哦对|嗯嗯)\s*$/g, '')
+    .trim() || text;
+
+  // 分类
+  var cat = 'ideas';
+  if(/花了|花|买|消费|付款|付了|支付|打车|外卖|奶茶|咖啡|餐饮|午饭|晚饭|早饭|快递|购买|话费|房租|水电|停车|门票|机票|酒店|收入|工资|到账|红包/.test(lower) && amt > 0){
+    cat = 'ledger';
+  } else if(/会议|开会|报告|方案|项目|工作|任务|加班|客户|领导|办公|邮件|汇报|需求|排期|上线|发布|测试|代码|开发|产品|运营|销售|合同|谈判|出差|培训|面试|招聘|绩效|周报|日报|提案/.test(lower)){
+    cat = 'work';
+  } else if(/吃饭|吃|喝|买菜|购物|超市|运动|健身|跑步|游泳|瑜伽|阅读|看书|睡觉|休息|家务|打扫|洗衣|做饭|电影|追剧|旅行|散步|遛狗|看病|医院|体检|理发|朋友|聚会|约会|接送|孩子|父母/.test(lower)){
+    cat = 'life';
   }
+
+  voiceAIText = polished;
+  voiceAICategory = cat;
+  voiceAIAmount = amt;
+
+  var catNames = {work:'💼 工作任务', life:'🌿 生活事项', ledger:'💰 台账支出', ideas:'💡 灵感'};
+  document.getElementById('voice-ai-text').textContent = polished;
+  document.getElementById('voice-ai-cat').textContent = catNames[cat];
+  document.getElementById('voice-ai-result').style.display = 'block';
+  document.getElementById('voice-main-hint').textContent = '已分类，确认后存入';
 }
-function saveVoiceTo(target){
-  var text = document.getElementById('voice-result-text').value.trim();
-  if(!text){ alert('没有内容可保存'); return; }
+
+function confirmVoiceSave(){
+  var text = voiceAIText;
+  var cat = voiceAICategory;
   var saveHint = document.getElementById('voice-save-hint');
-  if(target==='work'){
-    wTasks.push({id:Date.now(),text,done:false,pri:'mid',date:fmt(today)});
-    save(); saveHint.textContent = '✅ 已存入工作任务';
-  } else if(target==='life'){
-    lTasks.push({id:Date.now(),text,done:false,date:fmt(today)});
-    save(); saveHint.textContent = '✅ 已存入生活事项';
-  } else if(target==='ledger'){
-    var numMatch = text.match(/(\d+(\.\d+)?)/);
-    var amt = numMatch ? parseFloat(numMatch[1]) : 0;
-    ledger.push({id:Date.now(),name:text,amt,type:'out',cat:'其他',date:fmt(today)});
-    save(); saveHint.textContent = '✅ 已存入台账';
-  } else if(target==='ideas'){
-    ideas.push({id:Date.now(),text,date:fmt(today)});
-    save(); renderIdeas(); saveHint.textContent = '✅ 已存入灵感';
+  if(cat === 'work'){
+    wTasks.push({id:Date.now(), text:text, done:false, pri:'mid', date:fmt(today)});
+    save(); renderAllTasks(); renderCal();
+    saveHint.textContent = '✅ 已存入工作任务';
+  } else if(cat === 'life'){
+    lTasks.push({id:Date.now(), text:text, done:false, date:fmt(today)});
+    save(); renderLife();
+    saveHint.textContent = '✅ 已存入生活事项';
+  } else if(cat === 'ledger'){
+    ledger.push({id:Date.now(), name:text, amt:voiceAIAmount, type:'out', cat:'其他', date:fmt(today)});
+    save(); renderLedger();
+    saveHint.textContent = '✅ 已存入台账';
+  } else {
+    ideas.push({id:Date.now(), text:text, date:fmt(today)});
+    save(); renderIdeas();
+    saveHint.textContent = '✅ 已存入灵感';
   }
-  setTimeout(()=>{ saveHint.textContent=''; }, 3000);
+  document.getElementById('voice-ai-result').style.display = 'none';
+  document.getElementById('voice-result-box').style.display = 'none';
+  document.getElementById('voice-main-hint').textContent = '点击开始说话，再点结束';
+  setTimeout(function(){ saveHint.textContent=''; }, 3000);
+}
+
+function resetVoice(){
+  document.getElementById('voice-result-box').style.display = 'none';
+  document.getElementById('voice-ai-result').style.display = 'none';
+  document.getElementById('voice-main-hint').textContent = '点击开始说话，再点结束';
+  document.getElementById('voice-save-hint').textContent = '';
 }
 
 // --- 💡 灵感面板 ---
@@ -813,19 +856,13 @@ function renderIdeas(){
   var list = document.getElementById('ideas-list');
   if(!list) return;
   if(!ideas.length){ list.innerHTML='<div class="empty">还没有灵感，随手记一个吧 ✨</div>'; return; }
-  var sorted = [...ideas].sort((a,b)=>b.id-a.id);
-  list.innerHTML = sorted.map(item=>`
-    <div class="task-item">
-      <div style="flex:1">
-        <div style="font-size:14px;color:#2c2c2a;line-height:1.6">${item.text}</div>
-        <div style="font-size:11px;color:#bbb;margin-top:2px">${fmtD(item.date)}</div>
-      </div>
-      <span class="task-del" onclick="delIdea(${item.id})">×</span>
-    </div>
-  `).join('');
+  var sorted = [...ideas].sort(function(a,b){ return b.id-a.id; });
+  list.innerHTML = sorted.map(function(item){
+    return '<div class="task-item"><div style="flex:1"><div style="font-size:14px;color:#2c2c2a;line-height:1.6">'+item.text+'</div><div style="font-size:11px;color:#bbb;margin-top:2px">'+fmtD(item.date)+'</div></div><span class="task-del" onclick="delIdea('+item.id+')">×</span></div>';
+  }).join('');
 }
-function delIdea(id){ ideas=ideas.filter(i=>i.id!==id); save(); renderIdeas(); }
-function clearIdeas(){ if(confirm('确定清空所有灵感？')) { ideas=[]; save(); renderIdeas(); } }
+function delIdea(id){ ideas=ideas.filter(function(i){ return i.id!==id; }); save(); renderIdeas(); }
+function clearIdeas(){ if(confirm('确定清空所有灵感？')){ ideas=[]; save(); renderIdeas(); } }
 
 // --- 🎙️ 语音识别 + 豆包AI润色 ---
 var voiceRecog = null;
