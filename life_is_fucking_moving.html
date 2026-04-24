@@ -132,21 +132,29 @@ h1{font-size:22px;font-weight:600;margin-bottom:4px;color:#2c2c2a}
   <div id="tab-voice" class="panel active">
     <div class="card">
       <div class="section-title" style="font-size:15px;color:#2c2c2a;margin-bottom:6px">🎙️ 语音输入</div>
-      <p style="font-size:13px;color:#aaa;margin-bottom:18px">按下按钮说话，豆包AI自动整理提炼，再选择存到哪里</p>
-      <div style="display:flex;justify-content:center;margin-bottom:20px">
-        <button id="voice-main-btn" onclick="toggleVoiceMain()" style="width:90px;height:90px;border-radius:50%;border:none;background:#2c2c2a;color:#fff;font-size:32px;cursor:pointer;box-shadow:0 4px 16px rgba(0,0,0,.2);transition:all .2s">🎙️</button>
+      <p style="font-size:13px;color:#aaa;margin-bottom:18px">按住说话，松开后豆包自动整理分类</p>
+      <div style="display:flex;justify-content:center;margin-bottom:16px">
+        <button id="voice-main-btn"
+          onmousedown="startVoiceMain()" onmouseup="stopVoiceMain()"
+          ontouchstart="startVoiceMain()" ontouchend="stopVoiceMain()"
+          style="width:110px;height:110px;border-radius:50%;border:none;background:#2c2c2a;color:#fff;font-size:36px;cursor:pointer;box-shadow:0 4px 20px rgba(0,0,0,.25);transition:all .2s;user-select:none;-webkit-user-select:none">🎙️</button>
       </div>
-      <div id="voice-main-hint" style="text-align:center;font-size:13px;color:#aaa;margin-bottom:16px;min-height:20px">点击按钮开始说话</div>
+      <div id="voice-main-hint" style="text-align:center;font-size:13px;color:#aaa;margin-bottom:16px;min-height:20px">按住按钮说话，松开自动处理</div>
       <div id="voice-result-box" style="display:none">
-        <textarea id="voice-result-text" style="width:100%;min-height:80px;padding:10px;border:1.5px solid #e0dedd;border-radius:10px;font-size:14px;color:#2c2c2a;background:#faf9f7;resize:vertical;outline:none;font-family:inherit" placeholder="识别结果将显示在这里..."></textarea>
-        <div style="margin-top:10px;font-size:12px;color:#aaa;margin-bottom:8px">选择存入位置：</div>
-        <div style="display:flex;gap:8px;flex-wrap:wrap">
-          <button onclick="saveVoiceTo('work')" style="flex:1;padding:10px;background:#f5f4f0;border:1.5px solid #e0dedd;border-radius:10px;cursor:pointer;font-size:13px;color:#2c2c2a">💼 工作任务</button>
-          <button onclick="saveVoiceTo('life')" style="flex:1;padding:10px;background:#f5f4f0;border:1.5px solid #e0dedd;border-radius:10px;cursor:pointer;font-size:13px;color:#2c2c2a">🌿 生活事项</button>
-          <button onclick="saveVoiceTo('ledger')" style="flex:1;padding:10px;background:#f5f4f0;border:1.5px solid #e0dedd;border-radius:10px;cursor:pointer;font-size:13px;color:#2c2c2a">💰 台账记录</button>
-          <button onclick="saveVoiceTo('ideas')" style="flex:1;padding:10px;background:#f5f4f0;border:1.5px solid #e0dedd;border-radius:10px;cursor:pointer;font-size:13px;color:#2c2c2a">💡 灵感收藏</button>
+        <div style="background:#f5f4f0;border-radius:12px;padding:14px;margin-bottom:14px">
+          <div style="font-size:11px;color:#aaa;margin-bottom:6px">📝 原始识别</div>
+          <div id="voice-raw-text" style="font-size:13px;color:#888;line-height:1.6"></div>
         </div>
-        <div id="voice-save-hint" style="margin-top:10px;font-size:12px;color:#1d9e75;text-align:center;min-height:18px"></div>
+        <div id="voice-ai-result" style="display:none;border:1.5px solid #e0dedd;border-radius:12px;padding:14px;margin-bottom:14px">
+          <div style="font-size:11px;color:#aaa;margin-bottom:8px">✨ 豆包整理结果</div>
+          <div id="voice-ai-text" style="font-size:14px;color:#2c2c2a;line-height:1.7;margin-bottom:12px"></div>
+          <div style="font-size:11px;color:#aaa;margin-bottom:8px">📂 建议存入：<span id="voice-ai-cat" style="color:#185fa5;font-weight:600"></span></div>
+          <div style="display:flex;gap:8px">
+            <button id="voice-confirm-btn" onclick="confirmVoiceSave()" style="flex:2;padding:12px;background:#2c2c2a;color:#fff;border:none;border-radius:10px;cursor:pointer;font-size:14px;font-weight:600">✅ 确认存入</button>
+            <button onclick="resetVoice()" style="flex:1;padding:12px;background:#f5f4f0;color:#888;border:1.5px solid #e0dedd;border-radius:10px;cursor:pointer;font-size:13px">重说</button>
+          </div>
+        </div>
+        <div id="voice-save-hint" style="font-size:13px;color:#1d9e75;text-align:center;min-height:18px;font-weight:500"></div>
       </div>
     </div>
   </div>
