@@ -407,9 +407,8 @@ function renderCal(){
 }
 function selectDate(ds){
   selDate=ds;
-  var lbl=document.getElementById('work-date-label');
-  lbl.textContent=ds===fmt(today)?'今日任务':'任务 — '+fmtD(ds);
-  renderCal();renderWork();
+  renderCal();
+  renderAllTasks();
 }
 function calPrev(){calM--;if(calM<0){calM=11;calY--;}renderCal();}
 function calNext(){calM++;if(calM>11){calM=0;calY++;}renderCal();}
@@ -434,25 +433,19 @@ function aiAddWork(text){
 }
 function setWF(f,el){wFilter=f;document.querySelectorAll('#tab-work .filter-btn').forEach(b=>b.classList.remove('on'));el.classList.add('on');renderWork();}
 function renderWork(){
-  var items=wTasks.filter(t=>t.date===selDate);
-  if(wFilter!=='all')items=items.filter(t=>t.pri===wFilter);
-  var list=document.getElementById('work-list');
-  if(!items.length){list.innerHTML='<div class="empty">暂无任务，添加一个吧</div>';updateWStats();return;}
-  list.innerHTML=items.map(t=>{
-    var pc=t.pri==='high'?'p-high':t.pri==='mid'?'p-mid':'p-low';
-    return '<div class="task-item"><div class="priority-dot '+pc+'"></div><div class="task-check'+(t.done?' done':'')+'" onclick="toggleW('+t.id+')"></div><div class="task-text'+(t.done?' done':'')+'">'+t.text+(t.pri==='high'&&!t.done?'<span class="tag-urgent">紧急</span>':'')+'</div><span class="task-del" onclick="delW('+t.id+')">×</span></div>';
-  }).join('');
   updateWStats();
+  renderAllTasks();
 }
 function toggleW(id){var t=wTasks.find(t=>t.id===id);if(t)t.done=!t.done;save();renderWork();}
 function delW(id){wTasks=wTasks.filter(t=>t.id!==id);save();renderWork();renderCal();}
 function updateWStats(){
   var all=wTasks.filter(t=>t.date===selDate);
   var done=all.filter(t=>t.done);
-  document.getElementById('w-total').textContent=all.length;
-  document.getElementById('w-done').textContent=done.length;
+  var et=document.getElementById('w-total'); if(et) et.textContent=all.length;
+  var ed=document.getElementById('w-done'); if(ed) ed.textContent=done.length;
   var pct=all.length?Math.round(done.length/all.length*100):0;
-  document.getElementById('w-bar-wrap').innerHTML='<div class="bar-row"><div class="bar-label">'+pct+'%</div><div class="bar-bg"><div class="bar-fill" style="width:'+pct+'%;background:#2c2c2a"></div></div></div>';
+  var eb=document.getElementById('w-bar-wrap');
+  if(eb) eb.innerHTML='<div class="bar-row"><div class="bar-label">'+pct+'%</div><div class="bar-bg"><div class="bar-fill" style="width:'+pct+'%;background:#2c2c2a"></div></div></div>';
 }
 
 // --- LIFE ---
@@ -762,22 +755,11 @@ async function polishWithDoubao(text){
   var input = document.getElementById('chat-input');
   try {
     hint.textContent = '✨ 豆包润色中...';
+    var prompt = '你是日程助手，把语音识别文字整理成简洁任务记录，纠正错别字，提炼重点，去口头语，直接输出结果不加解释。原文：' + text;
     const resp = await fetch('https://ark.cn-beijing.volces.com/api/v3/chat/completions', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer ' + DOUBAO_API_KEY
-      },
-      body: JSON.stringify({
-        model: DOUBAO_MODEL,
-        messages: [{
-          role: 'user',
-          content: '你是一个日程助手。请把下面这段语音识别的文字整理成简洁清晰的任务或记录，纠正错别字，提炼重点，去掉口头语，直接输出整理后的内容，不要加任何解释：
-
-' + text
-        }],
-        max_tokens: 200
-      })
+      headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer ' + DOUBAO_API_KEY},
+      body: JSON.stringify({model: DOUBAO_MODEL, messages: [{role: 'user', content: prompt}], max_tokens: 200})
     });
     const data = await resp.json();
     if(data.choices && data.choices[0]){
@@ -791,6 +773,7 @@ async function polishWithDoubao(text){
     hint.textContent = '✅ 识别完成（润色失败，已保留原文）';
   }
 }
+
 
 function toggleVoice(){
   if(!voiceRecog){
