@@ -108,8 +108,8 @@ h1{font-size:22px;font-weight:600;margin-bottom:4px;color:#2c2c2a}
 .voice-no-support{color:#e24b4a}
 </style>
 <!-- Firebase SDK -->
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
 </head>
 <body>
 <div class="app">
@@ -306,17 +306,11 @@ var fbReady = false;
 
 function initFirebase(){
   try {
-    if(!firebase.apps || firebase.apps.length === 0){
-      firebaseApp = firebase.initializeApp(FIREBASE_CONFIG);
-    } else {
-      firebaseApp = firebase.apps[0];
-    }
-    db = firebase.database();
+    firebaseApp = firebase.initializeApp(FIREBASE_CONFIG);
+    db = firebase.database(firebaseApp);
     dbRef = db.ref('mydata');
     fbReady = true;
     showSyncStatus('connecting');
-
-    // 实时监听云端数据变化，自动同步到本地
     dbRef.on('value', function(snapshot){
       var data = snapshot.val();
       if(data){
@@ -329,14 +323,15 @@ function initFirebase(){
         renderAll();
         showSyncStatus('synced');
       } else {
-        // 云端无数据，把本地数据上传
         saveCloud();
         showSyncStatus('synced');
       }
     }, function(err){
+      console.error('Firebase error:', err);
       showSyncStatus('error');
     });
   } catch(e){
+    console.error('Firebase init error:', e);
     fbReady = false;
     showSyncStatus('error');
   }
