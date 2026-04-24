@@ -357,7 +357,7 @@ function showSyncStatus(state){
 }
 
 function renderAll(){
-  renderCal(); renderWork(); renderLife(); renderHabits(); renderLedger(); renderChat();
+  renderCal(); renderWork(); renderAllTasks(); renderLife(); renderHabits(); renderLedger(); renderChat(); renderIdeas();
 }
 
 // 本地数据（用于离线兜底）
@@ -644,6 +644,7 @@ function aiClassify(text){
 // 渲染聊天/灵感界面
 function renderChat(){
   const box=document.getElementById('chat-box');
+  if(!box) return;
   if(!chats.length){
     box.innerHTML='<div class="empty">输入任意内容，AI自动分类为工作/生活/台账/灵感</div>';
     return;
